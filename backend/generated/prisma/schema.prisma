@@ -1,0 +1,52 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/**
+ * ─────────────── MODELS ───────────────
+ */
+
+model User {
+  id   Int    @id @default(autoincrement())
+  name String
+  bids Bid[]
+}
+
+model Item {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String
+  startPrice  Decimal  @db.Decimal(10, 2)
+  endsAt      DateTime // auction deadline
+  closed      Boolean  @default(false) // set by cron/worker
+  createdAt   DateTime @default(now())
+  bids        Bid[]
+
+  @@index([endsAt]) // fast “which auctions expire next?”
+}
+
+model Bid {
+  id        Int      @id @default(autoincrement())
+  amount    Decimal  @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+
+  /**
+   * relations
+   */
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId Int
+  item   Item @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  itemId Int
+
+  /**
+   * constraints & indexes
+   */
+  @@unique([itemId, userId, amount]) // prevent duplicate identical bids
+  @@index([itemId]) // query all bids for an item fast
+}
